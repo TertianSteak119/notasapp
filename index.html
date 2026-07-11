@@ -1,0 +1,502 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotasApp</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, Arial, sans-serif;
+            color: #101828;
+            background: #f3f4f8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #f3f4f8;
+        }
+
+        button,
+        input,
+        textarea {
+            font: inherit;
+        }
+
+        .page {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #ffffff;
+            box-shadow: 0 1px 24px rgba(15, 23, 42, 0.08);
+            padding: 20px 24px;
+        }
+
+        .topbar {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+        }
+
+        .brand span {
+            color: #4f46e5;
+        }
+
+        .button-primary {
+            border: 0;
+            border-radius: 999px;
+            background: #4f46e5;
+            color: #ffffff;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+
+        .button-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        main {
+            flex: 1;
+            max-width: 1120px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 32px 24px 40px;
+        }
+
+        .hero {
+            display: grid;
+            gap: 12px;
+            max-width: 620px;
+            margin-bottom: 32px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(2rem, 2.5vw, 2.75rem);
+            line-height: 1.05;
+        }
+
+        .hero p {
+            margin: 0;
+            color: #667085;
+            font-size: 1rem;
+        }
+
+        .note-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+        }
+
+        .note-card {
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .note-card h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .note-card p {
+            margin: 0;
+            line-height: 1.75;
+            color: #475467;
+            flex: 1;
+        }
+
+        .pill {
+            align-self: flex-start;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(79, 70, 229, 0.12);
+            color: #4338ca;
+            font-size: 0.85rem;
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .note-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .button-danger {
+            border: 1px solid #f87171;
+            background: #fee2e2;
+            color: #b91c1c;
+            padding: 10px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .button-danger:hover {
+            background: #fecaca;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #667085;
+            font-size: 0.95rem;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 10;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            width: min(720px, 100%);
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: 0 26px 80px rgba(15, 23, 42, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 26px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.75rem;
+        }
+
+        .modal-header p {
+            margin: 0;
+            color: #667085;
+        }
+
+        .modal form {
+            display: grid;
+            gap: 22px;
+        }
+
+        .field {
+            display: grid;
+            gap: 10px;
+        }
+
+        .field label {
+            font-weight: 600;
+            color: #101828;
+            font-size: 0.98rem;
+        }
+
+        .field input,
+        .field textarea {
+            width: 100%;
+            border-radius: 16px;
+            border: 1px solid #dbe2ef;
+            background: #f8fafc;
+            padding: 16px;
+            transition: border-color 0.2s ease;
+        }
+
+        .field input:focus,
+        .field textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: #ffffff;
+        }
+
+        .field textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+
+        .category-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .category-item {
+            border: 1px solid #dfe3eb;
+            border-radius: 999px;
+            padding: 10px 16px;
+            cursor: pointer;
+            color: #475467;
+            background: #f8fafc;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .category-item.selected {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #3730a3;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .button-secondary {
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            padding: 12px 18px;
+            border-radius: 999px;
+            cursor: pointer;
+            color: #344054;
+        }
+
+        .button-secondary:hover {
+            background: #f8fafc;
+        }
+
+        @media (max-width: 640px) {
+            .topbar,
+            .modal {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="topbar">
+                <div class="brand">Notas<span>App</span></div>
+                <button class="button-primary" id="open-modal">+ Nueva nota</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="hero">
+                <h1>Mis notas</h1>
+                <p>Todo lo que no quiero olvidar, en un solo lugar.</p>
+            </section>
+
+            <section class="note-grid" id="note-container"></section>
+        </main>
+
+        <footer class="footer">Hecho con HTML en clase de Litoral Code</footer>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <div>
+                    <h2 id="modal-title">Nueva nota</h2>
+                    <p>Apunta esa idea antes de que se te escape.</p>
+                </div>
+                <button class="button-secondary" id="close-modal" type="button">Cerrar</button>
+            </div>
+
+            <form id="note-form">
+                    <div class="field">
+                    <label for="note-title">Título</label>
+                    <input type="text" id="note-title" placeholder="Ej. Comprar cascos talla M" required>
+                </div>
+
+                <div class="field">
+                    <label>Categoría</label>
+                    <div class="category-list" id="category-list">
+                        <button type="button" class="category-item selected">Trabajo</button>
+                        <button type="button" class="category-item">Ideas</button>
+                        <button type="button" class="category-item">Personal</button>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="note-content">Contenido</label>
+                    <textarea id="note-content" placeholder="Escribe aquí tu nota..." required></textarea>
+                </div>
+
+                <div class="actions">
+                    <button type="button" class="button-secondary" id="cancel-button">Cancelar</button>
+                    <button type="submit" class="button-primary">Guardar nota</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const notes = [
+            {
+                title: 'Comprar cascos talla M',
+                description: 'Son los que más se venden. Pedir reposición al proveedor.',
+                tag: 'Hoy'
+            },
+            {
+                title: 'Grabar episodio del podcast',
+                description: 'Tema: cómo elegir tu primer casco sin morir en el intento.',
+                tag: 'Ayer'
+            },
+            {
+                title: 'Idea para la clase',
+                description: 'Apagar el CSS en vivo y que vean los huesos del HTML.',
+                tag: 'Lunes'
+            }
+        ];
+
+        const noteContainer = document.getElementById('note-container');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const openModalButton = document.getElementById('open-modal');
+        const closeModalButton = document.getElementById('close-modal');
+        const cancelButton = document.getElementById('cancel-button');
+        const noteForm = document.getElementById('note-form');
+        const categoryButtons = document.querySelectorAll('.category-item');
+        const noteTitle = document.getElementById('note-title');
+        const noteContent = document.getElementById('note-content');
+
+        let editingIndex = null;
+
+        function renderNotes() {
+            noteContainer.innerHTML = notes.map((note, index) => `
+                <article class="note-card">
+                    <h3>${note.title}</h3>
+                    <p>${note.description}</p>
+                    <span class="pill">${note.tag}</span>
+                    <div class="note-actions">
+                        <button type="button" class="button-secondary" data-action="edit" data-index="${index}">Editar</button>
+                        <button type="button" class="button-danger" data-action="delete" data-index="${index}">Borrar</button>
+                    </div>
+                </article>
+            `).join('');
+        }
+
+        function openModal(editIndex = null) {
+            editingIndex = editIndex;
+            modalOverlay.classList.add('active');
+
+            if (editingIndex !== null) {
+                const note = notes[editingIndex];
+                noteTitle.value = note.title;
+                noteContent.value = note.description;
+                selectCategory(note.tag === 'hoy' ? 'Trabajo' : note.tag === 'mañana' ? 'Ideas' : 'Personal');
+                document.getElementById('modal-title').textContent = 'Editar nota';
+            } else {
+                noteForm.reset();
+                selectCategory('Trabajo');
+                document.getElementById('modal-title').textContent = 'Nueva nota';
+            }
+
+            noteTitle.focus();
+        }
+
+        function closeModal() {
+            modalOverlay.classList.remove('active');
+            noteForm.reset();
+            selectCategory('Trabajo');
+            editingIndex = null;
+            document.getElementById('modal-title').textContent = 'Nueva nota';
+        }
+
+        function selectCategory(category) {
+            categoryButtons.forEach(button => {
+                const active = button.textContent === category;
+                button.classList.toggle('selected', active);
+            });
+        }
+
+        openModalButton.addEventListener('click', () => openModal());
+        closeModalButton.addEventListener('click', closeModal);
+        cancelButton.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', event => {
+            if (event.target === modalOverlay) {
+                closeModal();
+            }
+        });
+
+        categoryButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                selectCategory(button.textContent);
+            });
+        });
+
+        noteContainer.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (!button) return;
+            const action = button.dataset.action;
+            const index = Number(button.dataset.index);
+
+            if (action === 'edit') {
+                openModal(index);
+            }
+
+            if (action === 'delete') {
+                notes.splice(index, 1);
+                renderNotes();
+            }
+        });
+
+        noteForm.addEventListener('submit', event => {
+            event.preventDefault();
+
+            const title = noteTitle.value.trim();
+            const description = noteContent.value.trim();
+            const selectedCategory = Array.from(categoryButtons).find(button => button.classList.contains('selected'))?.textContent || 'Trabajo';
+            const tag = selectedCategory === 'Trabajo' ? 'Hoy' : selectedCategory === 'Ideas' ? 'Ayer' : 'Personal';
+
+            if (!title || !description) {
+                return;
+            }
+
+            if (editingIndex !== null) {
+                notes[editingIndex] = { title, description, tag };
+            } else {
+                notes.unshift({ title, description, tag });
+            }
+
+            renderNotes();
+            closeModal();
+        });
+
+        renderNotes();
+    </script>
+</body>
+</html>
+
+
+
