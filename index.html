@@ -49,6 +49,19 @@
             gap: 16px;
         }
 
+        .app-error {
+            display: none;
+            max-width: 1120px;
+            margin: 0 auto 24px;
+            padding: 14px 18px;
+            border-radius: 18px;
+            background: #fee2e2;
+            color: #991b1b;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        }
+
         .brand {
             font-size: 1.1rem;
             font-weight: 700;
@@ -311,6 +324,8 @@
             </div>
         </header>
 
+        <div class="app-error" id="app-error" role="alert" aria-live="polite"></div>
+
         <main>
             <section class="hero">
                 <h1>Mis notas</h1>
@@ -362,7 +377,12 @@
     </div>
 
     <script>
-        const notes = [
+        const SUPABASE_URL = 'https://frygudqoybhdsbbqttbr.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_oGBAKBc1YGgQEYKwpo27ow_6pfx8mti';
+        const NOTES_TABLE = 'notas';
+        const STORAGE_KEY = 'notasAppLocal';
+
+        const defaultNotes = [
             {
                 title: 'Comprar cascos talla M',
                 description: 'Son los que más se venden. Pedir reposición al proveedor.',
@@ -380,6 +400,9 @@
             }
         ];
 
+        let notes = [];
+        let usingLocalFallback = false;
+
         const noteContainer = document.getElementById('note-container');
         const modalOverlay = document.getElementById('modal-overlay');
         const openModalButton = document.getElementById('open-modal');
@@ -389,8 +412,185 @@
         const categoryButtons = document.querySelectorAll('.category-item');
         const noteTitle = document.getElementById('note-title');
         const noteContent = document.getElementById('note-content');
+        const appError = document.getElementById('app-error');
 
         let editingIndex = null;
+
+        function supabaseHeaders(extra = {}) {
+            return {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                ...extra
+            };
+        }
+
+        async function parseSupabaseError(response) {
+            const text = await response.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                return text || response.statusText;
+            }
+        }
+
+        function showError(message) {
+            appError.textContent = message;
+            appError.style.display = 'block';
+        }
+
+        function hideError() {
+            appError.style.display = 'none';
+            appError.textContent = '';
+        }
+
+        function formatCreatedTag(timestamp) {
+            if (!timestamp) return 'Nota';
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        }
+
+        function saveLocalNotes() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+        }
+
+        function loadLocalNotes() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            notes = stored ? JSON.parse(stored) : defaultNotes.slice();
+        }
+
+        async function fetchNotes() {
+            hideError();
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/${NOTES_TABLE}?select=*`, {
+                    headers: supabaseHeaders()
+                });
+
+                if (!response.ok) {
+                    usingLocalFallback = true;
+                    const errorBody = await parseSupabaseError(response);
+                    if (response.status === 404) {
+                        showError('Supabase devolvió 404: no se encontró la tabla "notas". Revisa tu proyecto y la configuración de la base de datos.');
+                    } else if (response.status === 401) {
+                        showError(`Supabase devolvió 401: llave no autorizada. ${errorBody?.message || errorBody}`);
+                    } else {
+                        showError(`Supabase devolvió un error ${response.status}: ${errorBody?.message || errorBody}`);
+                    }
+                    loadLocalNotes();
+                    return;
+                }
+
+                const data = await response.json();
+                notes = data.map(note => ({
+                    id: note.id,
+                    title: note.titulo,
+                    description: note.contenido,
+                    tag: formatCreatedTag(note.creada_en),
+                    creada_en: note.creada_en,
+                    modificada_en: note.modificada_en
+                }));
+                usingLocalFallback = false;
+            } catch (error) {
+                console.error(error);
+                usingLocalFallback = true;
+                showError('No se pudieron cargar las notas desde Supabase. La app usa datos locales como respaldo.');
+                loadLocalNotes();
+            }
+        }
+
+        async function createNote(note) {
+            if (usingLocalFallback) {
+                note.id = Date.now();
+                notes.unshift(note);
+                saveLocalNotes();
+                return note;
+            }
+
+            const payload = {
+                id: crypto.randomUUID(),
+                titulo: note.title,
+                contenido: note.description,
+                creada_en: new Date().toISOString(),
+                modificada_en: new Date().toISOString()
+            };
+
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/${NOTES_TABLE}`, {
+                method: 'POST',
+                headers: supabaseHeaders({ Prefer: 'return=representation' }),
+                body: JSON.stringify([payload])
+            });
+
+            if (!response.ok) {
+                const errorBody = await parseSupabaseError(response);
+                throw new Error(`No se pudo crear la nota en Supabase: ${errorBody?.message || errorBody}`);
+            }
+
+            const [created] = await response.json();
+            return {
+                id: created.id,
+                title: created.titulo,
+                description: created.contenido,
+                tag: formatCreatedTag(created.creada_en),
+                creada_en: created.creada_en,
+                modificada_en: created.modificada_en
+            };
+        }
+
+        async function updateNoteInSupabase(id, note) {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/${NOTES_TABLE}?id=eq.${id}`, {
+                method: 'PATCH',
+                headers: supabaseHeaders({ Prefer: 'return=representation' }),
+                body: JSON.stringify({
+                    titulo: note.title,
+                    contenido: note.description,
+                    modificada_en: new Date().toISOString()
+                })
+            });
+
+            if (!response.ok) {
+                const errorBody = await parseSupabaseError(response);
+                throw new Error(`No se pudo actualizar la nota en Supabase: ${errorBody?.message || errorBody}`);
+            }
+        }
+
+        async function updateNote(note) {
+            if (usingLocalFallback) {
+                notes[editingIndex] = {
+                    ...notes[editingIndex],
+                    ...note
+                };
+                saveLocalNotes();
+                return;
+            }
+
+            const existing = notes[editingIndex];
+            await updateNoteInSupabase(existing.id, note);
+        }
+
+        async function deleteNoteInSupabase(id) {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/${NOTES_TABLE}?id=eq.${id}`, {
+                method: 'DELETE',
+                headers: supabaseHeaders()
+            });
+
+            if (!response.ok) {
+                const errorBody = await parseSupabaseError(response);
+                throw new Error(`No se pudo borrar la nota en Supabase: ${errorBody?.message || errorBody}`);
+            }
+        }
+
+        async function deleteNote(index) {
+            const note = notes[index];
+            if (usingLocalFallback || !note?.id) {
+                notes.splice(index, 1);
+                saveLocalNotes();
+                return;
+            }
+
+            await deleteNoteInSupabase(note.id);
+            notes.splice(index, 1);
+        }
 
         function renderNotes() {
             noteContainer.innerHTML = notes.map((note, index) => `
@@ -414,7 +614,7 @@
                 const note = notes[editingIndex];
                 noteTitle.value = note.title;
                 noteContent.value = note.description;
-                selectCategory(note.tag === 'hoy' ? 'Trabajo' : note.tag === 'mañana' ? 'Ideas' : 'Personal');
+                selectCategory(note.tag === 'Hoy' ? 'Trabajo' : note.tag === 'Ayer' ? 'Ideas' : 'Personal');
                 document.getElementById('modal-title').textContent = 'Editar nota';
             } else {
                 noteForm.reset();
@@ -455,7 +655,7 @@
             });
         });
 
-        noteContainer.addEventListener('click', event => {
+        noteContainer.addEventListener('click', async event => {
             const button = event.target.closest('button');
             if (!button) return;
             const action = button.dataset.action;
@@ -466,12 +666,16 @@
             }
 
             if (action === 'delete') {
-                notes.splice(index, 1);
-                renderNotes();
+                try {
+                    await deleteNote(index);
+                    renderNotes();
+                } catch (error) {
+                    console.error(error);
+                }
             }
         });
 
-        noteForm.addEventListener('submit', event => {
+        noteForm.addEventListener('submit', async event => {
             event.preventDefault();
 
             const title = noteTitle.value.trim();
@@ -483,20 +687,27 @@
                 return;
             }
 
-            if (editingIndex !== null) {
-                notes[editingIndex] = { title, description, tag };
-            } else {
-                notes.unshift({ title, description, tag });
-            }
+            try {
+                if (editingIndex !== null) {
+                    await updateNote({ title, description, tag });
+                    const note = notes[editingIndex];
+                    notes[editingIndex] = { ...note, title, description, tag };
+                } else {
+                    const created = await createNote({ title, description, tag });
+                    notes.unshift(created);
+                }
 
-            renderNotes();
-            closeModal();
+                renderNotes();
+                closeModal();
+            } catch (error) {
+                console.error(error);
+            }
         });
 
-        renderNotes();
+        (async function init() {
+            await fetchNotes();
+            renderNotes();
+        })();
     </script>
 </body>
 </html>
-
-
-
