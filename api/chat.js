@@ -40,7 +40,11 @@ async function handler(req, res) {
   };
 
   try {
-    const response = await fetchClient(GROQ_API_URL, {
+    if (typeof fetch !== 'function') {
+      throw new Error('fetch no está disponible en este entorno.');
+    }
+
+    const response = await fetch(GROQ_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
