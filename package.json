@@ -2,5 +2,10 @@
   "name": "notasapp",
   "private": true,
   "type": "commonjs",
-  "dependencies": {}
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
 }

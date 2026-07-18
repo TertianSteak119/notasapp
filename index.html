@@ -896,7 +896,8 @@
 
             if (!response.ok) {
                 const errorBody = await response.json().catch(() => ({}));
-                throw new Error(errorBody.error || 'Error al enviar la pregunta.');
+                console.error('API /api/chat response', response.status, errorBody);
+                throw new Error((errorBody.error ? `${errorBody.error}` : 'Error al enviar la pregunta.') + (errorBody.details ? `: ${errorBody.details}` : ''));
             }
 
             const data = await response.json();
