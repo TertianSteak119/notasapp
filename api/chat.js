@@ -1,5 +1,4 @@
 const GROQ_API_URL = 'https://api.groq.com/v1/chat/completions';
-const fetchClient = globalThis.fetch || require('node-fetch');
 
 function buildPrompt(question, notes) {
   const notesText = Array.isArray(notes) && notes.length > 0
