@@ -289,6 +289,81 @@
             flex-wrap: wrap;
         }
 
+        .chat-panel {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative;
+            width: min(1120px, 100%);
+            max-width: 1120px;
+            margin: 24px auto;
+            min-height: 280px;
+            background: #eef2ff;
+            border: 2px solid #c7d2fe;
+            border-radius: 24px;
+            padding: 26px;
+            box-shadow: 0 22px 55px rgba(79, 70, 229, 0.12);
+        }
+
+        .chat-header h2 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: #3730a3;
+        }
+
+        .chat-header p {
+            margin: 8px 0 0;
+            color: #667085;
+        }
+
+        .chat-messages {
+            min-height: 180px;
+            max-height: 280px;
+            overflow-y: auto;
+            margin: 18px 0;
+            display: grid;
+            gap: 14px;
+        }
+
+        .chat-message {
+            padding: 16px;
+            border-radius: 20px;
+            line-height: 1.6;
+        }
+
+        .chat-message.user {
+            background: #eef2ff;
+            color: #1e293b;
+            justify-self: end;
+        }
+
+        .chat-message.bot {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #0f172a;
+            justify-self: start;
+        }
+
+        .chat-form {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+        }
+
+        .chat-form input {
+            width: 100%;
+            border-radius: 16px;
+            border: 1px solid #dbe2ef;
+            background: #f8fafc;
+            padding: 14px 16px;
+        }
+
+        .chat-form input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: #ffffff;
+        }
+
         .button-secondary {
             border: 1px solid #cbd5e1;
             background: #ffffff;
@@ -325,6 +400,18 @@
         </header>
 
         <div class="app-error" id="app-error" role="alert" aria-live="polite"></div>
+
+        <section class="chat-panel" id="chat-panel">
+            <div class="chat-header">
+                <h2>Chat con Groq</h2>
+                <p>Pregunta sobre tus notas y recibe una respuesta inteligente.</p>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <form class="chat-form" id="chat-form">
+                <input type="text" id="chat-question" placeholder="Escribe tu pregunta..." aria-label="Pregunta" required>
+                <button type="submit" class="button-primary">Enviar</button>
+            </form>
+        </section>
 
         <main>
             <section class="hero">
@@ -376,6 +463,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.js"></script>
     <script>
         const SUPABASE_URL = 'https://frygudqoybhdsbbqttbr.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_oGBAKBc1YGgQEYKwpo27ow_6pfx8mti';
@@ -415,6 +503,77 @@
         const appError = document.getElementById('app-error');
 
         let editingIndex = null;
+        let supabaseClient = null;
+        let realtimeChannel = null;
+
+        function createRealtimeClient() {
+            if (window.supabase) {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        }
+
+        async function subscribeRealtime() {
+            if (!supabaseClient) return;
+
+            if (realtimeChannel) {
+                await realtimeChannel.unsubscribe();
+            }
+
+            realtimeChannel = supabaseClient.channel('notas-realtime')
+                .on('postgres_changes', { event: '*', schema: 'public', table: NOTES_TABLE }, payload => {
+                    handleRealtimeChange(payload);
+                });
+
+            try {
+                await realtimeChannel.subscribe();
+            } catch (error) {
+                console.error('Error en suscripción realtime:', error);
+            }
+        }
+
+        function getNoteFromPayload(payload) {
+            const record = payload.new || payload.record || payload;
+            if (!record) return null;
+
+            return {
+                id: record.id,
+                title: record.titulo,
+                description: record.contenido,
+                tag: formatCreatedTag(record.creada_en),
+                creada_en: record.creada_en,
+                modificada_en: record.modificada_en
+            };
+        }
+
+        function handleRealtimeChange(payload) {
+            const eventType = String(payload.eventType || payload.type || payload.event || '').toUpperCase();
+            const note = getNoteFromPayload(payload);
+            if (!note || !note.id) return;
+
+            const existingIndex = notes.findIndex(item => item.id === note.id);
+
+            if (eventType === 'INSERT') {
+                if (existingIndex === -1) {
+                    notes.unshift(note);
+                } else {
+                    notes[existingIndex] = note;
+                }
+            } else if (eventType === 'UPDATE') {
+                if (existingIndex === -1) {
+                    notes.unshift(note);
+                } else {
+                    notes[existingIndex] = note;
+                }
+            } else if (eventType === 'DELETE') {
+                if (existingIndex !== -1) {
+                    notes.splice(existingIndex, 1);
+                }
+            } else {
+                return;
+            }
+
+            renderNotes();
+        }
 
         function supabaseHeaders(extra = {}) {
             return {
@@ -491,6 +650,7 @@
                     modificada_en: note.modificada_en
                 }));
                 usingLocalFallback = false;
+                await subscribeRealtime();
             } catch (error) {
                 console.error(error);
                 usingLocalFallback = true;
@@ -704,7 +864,71 @@
             }
         });
 
+        const chatForm = document.getElementById('chat-form');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatQuestion = document.getElementById('chat-question');
+
+        function appendChatMessage(content, role) {
+            const message = document.createElement('div');
+            message.className = `chat-message ${role}`;
+            message.textContent = content;
+            chatMessages.appendChild(message);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendChat(question) {
+            const payload = {
+                question,
+                notes: notes.map(note => ({
+                    title: note.title,
+                    description: note.description,
+                    tag: note.tag
+                }))
+            };
+
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                throw new Error(errorBody.error || 'Error al enviar la pregunta.');
+            }
+
+            const data = await response.json();
+            return data.answer;
+        }
+
+        chatForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const question = chatQuestion.value.trim();
+            if (!question) return;
+
+            appendChatMessage(question, 'user');
+            chatQuestion.value = '';
+
+            try {
+                appendChatMessage('Pensando...', 'bot');
+                const answer = await sendChat(question);
+                const lastBotMessage = chatMessages.querySelector('.chat-message.bot:last-child');
+                if (lastBotMessage) {
+                    lastBotMessage.textContent = answer;
+                }
+            } catch (error) {
+                const lastBotMessage = chatMessages.querySelector('.chat-message.bot:last-child');
+                if (lastBotMessage) {
+                    lastBotMessage.textContent = 'No se pudo obtener respuesta. Intenta de nuevo.';
+                }
+                console.error(error);
+            }
+        });
+
         (async function init() {
+            createRealtimeClient();
             await fetchNotes();
             renderNotes();
         })();
