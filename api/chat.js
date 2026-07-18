@@ -8,7 +8,7 @@ function buildPrompt(question, notes) {
   return `Usa estas notas para responder la pregunta en español. Mantén la respuesta corta y clara. Si la pregunta no puede responderse con las notas, indica que no tienes suficiente información.\n\nNotas:\n${notesText}\n\nPregunta:\n${question}`;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -19,9 +19,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'La pregunta es requerida.' });
   }
 
-  const apiKey = process.env.GORQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'GORQ_API_KEY no está configurada en el entorno.' });
+    return res.status(500).json({ error: 'GROQ_API_KEY no está configurada en el entorno.' });
   }
 
   const payload = {
@@ -63,3 +63,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Error interno en el servidor.', details: error.message });
   }
 }
+
+module.exports = handler;
